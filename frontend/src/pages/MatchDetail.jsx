@@ -185,7 +185,7 @@ export default function MatchDetail() {
             rows={4}
             value={notifyMessage}
             onChange={(e) => setNotifyMessage(e.target.value)}
-            placeholder={`Match reminder: ${match.home_team_name} vs ${match.away_team_name} at ${match.venue}...`}
+            placeholder={`Reply YES to confirm attendance for ${match.home_team_name} vs ${match.away_team_name}`}
           />
         </Field>
         <p className="text-xs text-stone-400 mb-4">
