@@ -10,7 +10,7 @@
     "seed": "node src/db/seed.js"
   },
   "dependencies": {
-    "africastalking": "^0.6.4",
+    "africastalking": "^0.7.9",
     "better-sqlite3": "^11.3.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",

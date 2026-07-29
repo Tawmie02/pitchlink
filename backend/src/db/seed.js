@@ -5,6 +5,7 @@ import { db } from "./index.js";
 db.exec(`
 DELETE FROM messages;
 DELETE FROM participants;
+DELETE FROM team_contacts;
 DELETE FROM matches;
 DELETE FROM teams;
 DELETE FROM users;
@@ -19,14 +20,41 @@ insertUser.run("Demo Organizer", "organizer@pitchlink.dev", bcryptImport.hash("p
 const insertTeam = db.prepare(
   "INSERT INTO teams (name, captain_name, captain_phone) VALUES (?, ?, ?)"
 );
+const insertTeamContact = db.prepare(
+  "INSERT INTO team_contacts (team_id, name, phone, role) VALUES (?, ?, ?, ?)"
+);
 const teams = [
-  ["Nairobi Rangers FC", "Brian Otieno", "+254711000001"],
-  ["Kisumu Warriors", "Faith Achieng", "+254711000002"],
-  ["Mombasa Tigers", "Ali Hassan", "+254711000003"],
-  ["Eldoret Eagles", "Grace Chebet", "+254711000004"],
-  ["Nakuru Panthers", "Kevin Kiptoo", "+254711000005"],
+  ["Nairobi Rangers FC", "Brian Otieno", "+254711000001", [
+    ["Brian Otieno", "+254711000001", "captain"],
+    ["Samuel Mwangi", "+254711000010", "manager"],
+    ["Esther Njeri", "+254711000011", "member"],
+  ]],
+  ["Kisumu Warriors", "Faith Achieng", "+254711000002", [
+    ["Faith Achieng", "+254711000002", "captain"],
+    ["Peter Oloo", "+254711000012", "coach"],
+    ["Jane Auma", "+254711000013", "member"],
+  ]],
+  ["Mombasa Tigers", "Ali Hassan", "+254711000003", [
+    ["Ali Hassan", "+254711000003", "captain"],
+    ["Mary Wambui", "+254711000014", "member"],
+  ]],
+  ["Eldoret Eagles", "Grace Chebet", "+254711000004", [
+    ["Grace Chebet", "+254711000004", "captain"],
+    ["Michael Kamau", "+254711000015", "member"],
+  ]],
+  ["Nakuru Panthers", "Kevin Kiptoo", "+254711000005", [
+    ["Kevin Kiptoo", "+254711000005", "captain"],
+    ["Susan Kiplagat", "+254711000016", "member"],
+  ]],
 ];
-const teamIds = teams.map((t) => insertTeam.run(...t).lastInsertRowid);
+const teamIds = teams.map((t) => insertTeam.run(t[0], t[1], t[2]).lastInsertRowid);
+teams.forEach((team, index) => {
+  const contacts = team[3] || [[team[1], team[2], "captain"]];
+  const teamId = teamIds[index];
+  contacts.forEach(([name, phone, role]) => {
+    insertTeamContact.run(teamId, name, phone, role);
+  });
+});
 
 const insertMatch = db.prepare(
   `INSERT INTO matches (home_team_id, away_team_id, venue, match_date, match_time, status)
