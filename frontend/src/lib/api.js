@@ -6,21 +6,31 @@ function getToken() {
 
 async function request(path, options = {}) {
   const token = getToken();
-  const res = await fetch(`${BASE}${path}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...options.headers,
-    },
-    body: options.body ? JSON.stringify(options.body) : undefined,
-  });
+  let res;
+  try {
+    res = await fetch(`${BASE}${path}`, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...options.headers,
+      },
+      body: options.body ? JSON.stringify(options.body) : undefined,
+    });
+  } catch (err) {
+    const error = new Error("Network connection error. Please check backend server status.");
+    error.status = 0;
+    throw error;
+  }
 
   if (res.status === 204) return null;
 
   const data = await res.json().catch(() => null);
   if (!res.ok) {
-    throw new Error(data?.error || `Request failed (${res.status})`);
+    const error = new Error(data?.error || `Request failed (${res.status})`);
+    error.status = res.status;
+    error.payload = data;
+    throw error;
   }
   return data;
 }
@@ -35,7 +45,8 @@ export const api = {
   createMatch: (payload) => request("/matches", { method: "POST", body: payload }),
   updateMatch: (id, payload) => request(`/matches/${id}`, { method: "PUT", body: payload }),
   deleteMatch: (id) => request(`/matches/${id}`, { method: "DELETE" }),
-  notifyMatch: (id, message) => request(`/matches/${id}/notify`, { method: "POST", body: { message } }),
+  notifyMatch: (id, message, participantId) =>
+    request(`/matches/${id}/notify`, { method: "POST", body: { message, participant_id: participantId } }),
   cancelAlert: (id, reason) => request(`/matches/${id}/cancel-alert`, { method: "POST", body: { reason } }),
   simulateReply: (matchId, participantId, status) =>
     request(`/matches/${matchId}/participants/${participantId}/simulate-reply`, {

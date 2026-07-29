@@ -1,4 +1,4 @@
-import bcryptImport from "../lib/simpleHash.js";
+import passwordHelper from "../lib/password.js";
 import { db } from "./index.js";
 
 // Wipe existing demo data (keeps schema)
@@ -15,7 +15,7 @@ DELETE FROM ussd_sessions;
 const insertUser = db.prepare(
   "INSERT INTO users (name, email, password_hash) VALUES (?, ?, ?)"
 );
-insertUser.run("Demo Organizer", "organizer@pitchlink.dev", bcryptImport.hash("password123"));
+insertUser.run("Demo Organizer", "organizer@pitchlink.dev", passwordHelper.hash("password123"));
 
 const insertTeam = db.prepare(
   "INSERT INTO teams (name, captain_name, captain_phone) VALUES (?, ?, ?)"
@@ -92,17 +92,40 @@ matchIds.forEach((matchId, i) => {
   const homeTeam = teams[teamIds.indexOf(homeTeamId)];
   const awayTeam = teams[teamIds.indexOf(awayTeamId)];
 
-  const p1 = insertParticipant.run(
-    matchId, homeTeamId, homeTeam[1], homeTeam[2], "captain",
-    statusCycle[i % statusCycle.length],
-    statusCycle[i % statusCycle.length] !== "pending" ? new Date().toISOString() : null
-  ).lastInsertRowid;
+  const homeContacts = homeTeam[3] || [[homeTeam[1], homeTeam[2], "captain"]];
+  const awayContacts = awayTeam[3] || [[awayTeam[1], awayTeam[2], "captain"]];
 
-  const p2 = insertParticipant.run(
-    matchId, awayTeamId, awayTeam[1], awayTeam[2], "captain",
-    statusCycle[(i + 1) % statusCycle.length],
-    statusCycle[(i + 1) % statusCycle.length] !== "pending" ? new Date().toISOString() : null
-  ).lastInsertRowid;
+  const participantRows = [];
+
+  for (const [name, phone, role] of homeContacts) {
+    const status = role === "captain" ? statusCycle[i % statusCycle.length] : "pending";
+    participantRows.push(
+      insertParticipant.run(
+        matchId,
+        homeTeamId,
+        name,
+        phone,
+        role,
+        status,
+        status !== "pending" ? new Date().toISOString() : null
+      ).lastInsertRowid
+    );
+  }
+
+  for (const [name, phone, role] of awayContacts) {
+    const status = role === "captain" ? statusCycle[(i + 1) % statusCycle.length] : "pending";
+    participantRows.push(
+      insertParticipant.run(
+        matchId,
+        awayTeamId,
+        name,
+        phone,
+        role,
+        status,
+        status !== "pending" ? new Date().toISOString() : null
+      ).lastInsertRowid
+    );
+  }
 
   const p3 = insertParticipant.run(
     matchId, null, "Referee James Mwangi", "+254722000099", "referee",
@@ -110,12 +133,12 @@ matchIds.forEach((matchId, i) => {
   ).lastInsertRowid;
 
   insertMessage.run(
-    matchId, p1, "sms", "outbound",
+    matchId, participantRows[0], "sms", "outbound",
     `Match reminder: ${homeTeam[0]} vs ${awayTeam[0]} at ${matchRows[i][2]} on ${matchRows[i][3]} ${matchRows[i][4]}. Reply CONFIRM/DECLINE. -- Powered by Java House Nairobi`,
     "sent", `-${(i + 1) * 3} hours`
   );
   insertMessage.run(
-    matchId, p2, "sms", "outbound",
+    matchId, participantRows[1], "sms", "outbound",
     `Match reminder: ${homeTeam[0]} vs ${awayTeam[0]} at ${matchRows[i][2]} on ${matchRows[i][3]} ${matchRows[i][4]}. Reply CONFIRM/DECLINE. -- Powered by Java House Nairobi`,
     "sent", `-${(i + 1) * 3} hours`
   );

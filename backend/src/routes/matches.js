@@ -4,6 +4,12 @@ import { sendSms, triggerVoiceAlert } from "../services/africastalking.js";
 
 const router = Router();
 
+function getTeamContacts(teamId) {
+  return db
+    .prepare("SELECT name, phone, role, team_id FROM team_contacts WHERE team_id = ? ORDER BY id ASC")
+    .all(teamId);
+}
+
 function formatDate(isoDate) {
   return new Date(`${isoDate}T00:00:00`).toLocaleDateString("en-GB", {
     day: "2-digit",
@@ -34,7 +40,85 @@ function buildReminderMessage(match) {
   ].join("\n");
 }
 
+function buildMatchUpdateMessage(before, after) {
+  const lines = ["⚠️ Match Update", ""];
+
+  if (before.venue !== after.venue) {
+    lines.push("Venue changed to:", after.venue, "");
+  }
+
+  if (before.match_time !== after.match_time) {
+    lines.push(`Kickoff updated to: ${formatTime(after.match_time)}`, "");
+  }
+
+  if (before.match_date !== after.match_date) {
+    lines.push(`Date updated to: ${formatDate(after.match_date)}`, "");
+  }
+
+  if (before.status !== after.status && after.status === "cancelled") {
+    lines.push("Match cancelled.", "");
+  }
+
+  if (lines.length === 2) {
+    return null;
+  }
+
+  lines.push("Please check the PitchLink dashboard for details.");
+  return lines.join("\n");
+}
+
+function syncMatchRoster(matchId) {
+  const match = db.prepare("SELECT * FROM matches WHERE id = ?").get(matchId);
+  if (!match) return null;
+
+  const contacts = [...getTeamContacts(match.home_team_id), ...getTeamContacts(match.away_team_id)];
+  const participantLookup = db.prepare(
+    `SELECT id
+     FROM participants
+     WHERE match_id = ?
+       AND team_id = ?
+       AND phone = ?
+       AND role = ?`
+  );
+  const nameLookup = db.prepare(
+    `SELECT id
+     FROM participants
+     WHERE match_id = ?
+       AND team_id = ?
+       AND name = ?
+       AND role = ?`
+  );
+  const insertParticipant = db.prepare(
+    `INSERT INTO participants (match_id, team_id, name, phone, role)
+     VALUES (?, ?, ?, ?, ?)`
+  );
+  const updateParticipant = db.prepare(
+    `UPDATE participants SET name = ?, phone = ?, role = ?, team_id = ? WHERE id = ?`
+  );
+
+  for (const contact of contacts) {
+    const exactMatch =
+      participantLookup.get(matchId, match.home_team_id, contact.phone, contact.role) ||
+      participantLookup.get(matchId, match.away_team_id, contact.phone, contact.role);
+    if (exactMatch) continue;
+
+    const renamed =
+      nameLookup.get(matchId, match.home_team_id, contact.name, contact.role) ||
+      nameLookup.get(matchId, match.away_team_id, contact.name, contact.role);
+    if (renamed) {
+      updateParticipant.run(contact.name, contact.phone, contact.role || "member", contact.team_id || match.home_team_id, renamed.id);
+      continue;
+    }
+
+    insertParticipant.run(matchId, contact.team_id || match.home_team_id, contact.name, contact.phone, contact.role || "member");
+  }
+
+  return match;
+}
+
 function getMatchWithDetails(matchId) {
+  syncMatchRoster(matchId);
+
   const match = db
     .prepare(
       `SELECT m.*, 
@@ -46,6 +130,7 @@ function getMatchWithDetails(matchId) {
        WHERE m.id = ?`
     )
     .get(matchId);
+
   if (!match) return null;
 
   const participants = db
@@ -117,7 +202,7 @@ router.get("/:id", (req, res) => {
 });
 
 router.post("/", (req, res) => {
-  const { home_team_id, away_team_id, venue, match_date, match_time } = req.body;
+  const { home_team_id, away_team_id, venue, match_date, match_time, referee_name, referee_phone } = req.body;
   if (!home_team_id || !away_team_id || !venue || !match_date || !match_time) {
     return res.status(400).json({ error: "All fields are required" });
   }
@@ -162,13 +247,20 @@ router.post("/", (req, res) => {
     insertParticipant.run(matchId, away_team_id, awayTeam.captain_name, awayTeam.captain_phone, "captain");
   }
 
+  // Add Primary Referee & Assistant Referees
+  const refName = referee_name || "Referee James Mwangi";
+  const refPhone = referee_phone || "+254722000099";
+  insertParticipant.run(matchId, null, refName, refPhone, "referee");
+  insertParticipant.run(matchId, null, "Linesman Peter Omondi", "+254722000088", "assistant_referee");
+  insertParticipant.run(matchId, null, "Linesman Kevin Mutua", "+254722000077", "assistant_referee");
+
   res.status(201).json(getMatchWithDetails(matchId));
 });
 
 router.put("/:id", (req, res) => {
   const existing = db.prepare("SELECT * FROM matches WHERE id = ?").get(req.params.id);
   if (!existing) return res.status(404).json({ error: "Match not found" });
-  const { venue, match_date, match_time, status } = req.body;
+  const { venue, match_date, match_time, status, send_sms_update = true } = req.body;
   db.prepare(
     "UPDATE matches SET venue = ?, match_date = ?, match_time = ?, status = ? WHERE id = ?"
   ).run(
@@ -178,6 +270,24 @@ router.put("/:id", (req, res) => {
     status ?? existing.status,
     req.params.id
   );
+
+  const updated = db.prepare("SELECT * FROM matches WHERE id = ?").get(req.params.id);
+  const updateMessage = buildMatchUpdateMessage(existing, updated);
+  if (updateMessage && send_sms_update) {
+    syncMatchRoster(req.params.id);
+    const participants = db.prepare("SELECT * FROM participants WHERE match_id = ?").all(req.params.id);
+    for (const participant of participants) {
+      void sendSms(participant.phone, updateMessage).then(({ status, providerRef, body }) => {
+        db.prepare(
+          `INSERT INTO messages (match_id, participant_id, channel, direction, body, status, provider_ref)
+           VALUES (?, ?, 'sms', 'outbound', ?, ?, ?)`
+        ).run(req.params.id, participant.id, body, status, providerRef);
+      }).catch((err) => {
+        console.error("[MATCH UPDATE SMS] failed:", err.message);
+      });
+    }
+  }
+
   res.json(getMatchWithDetails(req.params.id));
 });
 
@@ -191,12 +301,19 @@ router.post("/:id/notify", async (req, res) => {
   const match = getMatchWithDetails(req.params.id);
   if (!match) return res.status(404).json({ error: "Match not found" });
 
-  const messageText =
-    req.body.message ||
-    buildReminderMessage(match);
+  const { message, participant_id } = req.body;
+  const messageText = message || buildReminderMessage(match);
+
+  const targetParticipants = participant_id
+    ? match.participants.filter((p) => String(p.id) === String(participant_id))
+    : match.participants;
+
+  if (targetParticipants.length === 0) {
+    return res.status(400).json({ error: "No matching participants found to notify" });
+  }
 
   const results = [];
-  for (const participant of match.participants) {
+  for (const participant of targetParticipants) {
     const { status, providerRef, body } = await sendSms(participant.phone, messageText);
     db.prepare(
       `INSERT INTO messages (match_id, participant_id, channel, direction, body, status, provider_ref)
@@ -220,11 +337,21 @@ router.post("/:id/cancel-alert", async (req, res) => {
 
   const results = [];
   for (const participant of match.participants) {
+    // 1. Pre-insert record to prevent race condition when AT hits /api/voice/events
+    const insertResult = db.prepare(
+      `INSERT INTO messages (match_id, participant_id, channel, direction, body, status)
+       VALUES (?, ?, 'voice', 'outbound', ?, 'pending')`
+    ).run(match.id, participant.id, ttsMessage);
+    const msgId = insertResult.lastInsertRowid;
+
+    // 2. Trigger voice robocall via AT API
     const { status, providerRef } = await triggerVoiceAlert(participant.phone, ttsMessage);
+
+    // 3. Update record with actual provider reference and status
     db.prepare(
-      `INSERT INTO messages (match_id, participant_id, channel, direction, body, status, provider_ref)
-       VALUES (?, ?, 'voice', 'outbound', ?, ?, ?)`
-    ).run(match.id, participant.id, ttsMessage, status, providerRef);
+      `UPDATE messages SET status = ?, provider_ref = ? WHERE id = ?`
+    ).run(status, providerRef, msgId);
+
     results.push({ participant: participant.name, phone: participant.phone, status });
   }
 

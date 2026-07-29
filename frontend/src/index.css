@@ -8,11 +8,11 @@ html, body, #root {
 }
 
 body {
-  @apply bg-stone-50 text-stone-900 antialiased;
+  @apply bg-stone-50 dark:bg-stone-950 text-stone-900 dark:text-stone-100 antialiased transition-colors duration-200;
 }
 
 ::selection {
-  @apply bg-pitch-200;
+  @apply bg-pitch-200 dark:bg-pitch-800;
 }
 
 /* subtle focus ring for accessibility, matches the palette */

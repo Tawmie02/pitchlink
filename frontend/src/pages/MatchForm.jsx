@@ -17,7 +17,7 @@ export default function MatchForm() {
   const toast = useToast();
 
   useEffect(() => {
-    api.getTeams().then(setTeams).catch(console.error);
+    api.getTeams().then(setTeams).catch((err) => toast.push(err.message, "error"));
   }, []);
 
   async function handleSubmit(e) {
@@ -37,8 +37,8 @@ export default function MatchForm() {
 
   return (
     <div className="p-8 max-w-xl mx-auto">
-      <h1 className="text-2xl font-bold text-stone-900 mb-1">Create match</h1>
-      <p className="text-stone-500 text-sm mb-6">
+      <h1 className="text-2xl font-bold text-stone-900 dark:text-stone-100 mb-1">Create match</h1>
+      <p className="text-stone-500 dark:text-stone-400 text-sm mb-6">
         Captains and a default referee slot will be added automatically once you save.
       </p>
 
@@ -104,7 +104,7 @@ export default function MatchForm() {
       </Card>
 
       {teams.length === 0 && (
-        <p className="text-sm text-amber-600 mt-4">
+        <p className="text-sm text-amber-600 dark:text-amber-400 mt-4">
           You don't have any teams yet — add teams first so you can pick them here.
         </p>
       )}

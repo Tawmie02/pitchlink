@@ -15,7 +15,7 @@ export default function Teams() {
   const toast = useToast();
 
   function load() {
-    api.getTeams().then(setTeams).catch(console.error);
+    api.getTeams().then(setTeams).catch((err) => toast.push(err.message, "error"));
   }
   useEffect(load, []);
 
@@ -119,55 +119,57 @@ export default function Teams() {
     <div className="p-8 max-w-6xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-stone-900">Teams</h1>
-          <p className="text-stone-500 text-sm mt-0.5">All team contacts can be stored here so every stakeholder can receive SMS, voice and USSD updates.</p>
+          <h1 className="text-2xl font-bold text-stone-900 dark:text-stone-100">Teams</h1>
+          <p className="text-stone-500 dark:text-stone-400 text-sm mt-0.5">All team contacts can be stored here so every stakeholder can receive SMS, voice and USSD updates.</p>
         </div>
         <Button onClick={openCreate}>
           <Plus className="w-4 h-4" /> Add team
         </Button>
       </div>
 
-      <Card>
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-stone-400 border-b border-stone-100">
-              <th className="px-6 py-3 font-medium">Team</th>
-              <th className="px-6 py-3 font-medium">Captain</th>
-              <th className="px-6 py-3 font-medium">Phone</th>
-              <th className="px-6 py-3 font-medium">Contacts</th>
-              <th className="px-6 py-3 font-medium text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {teams.map((t) => (
-              <tr key={t.id} className="border-b border-stone-50 last:border-0 hover:bg-stone-50/50">
-                <td className="px-6 py-3.5 font-medium text-stone-800">{t.name}</td>
-                <td className="px-6 py-3.5 text-stone-600">{t.captain_name}</td>
-                <td className="px-6 py-3.5 text-stone-500">
-                  <span className="inline-flex items-center gap-1.5">
-                    <Phone className="w-3.5 h-3.5" /> {t.captain_phone}
-                  </span>
-                </td>
-                <td className="px-6 py-3.5 text-stone-500">{t.contacts?.length ?? 0}</td>
-                <td className="px-6 py-3.5 text-right">
-                  <button onClick={() => openEdit(t)} className="text-stone-400 hover:text-pitch-600 p-1.5">
-                    <Pencil className="w-4 h-4" />
-                  </button>
-                  <button onClick={() => handleDelete(t.id)} className="text-stone-400 hover:text-red-600 p-1.5">
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </td>
+      <Card className="overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-stone-400 dark:text-stone-500 border-b border-stone-100 dark:border-stone-800">
+                <th className="px-6 py-3 font-medium">Team</th>
+                <th className="px-6 py-3 font-medium">Captain</th>
+                <th className="px-6 py-3 font-medium">Phone</th>
+                <th className="px-6 py-3 font-medium">Contacts</th>
+                <th className="px-6 py-3 font-medium text-right">Actions</th>
               </tr>
-            ))}
-            {teams.length === 0 && (
-              <tr>
-                <td colSpan={4} className="px-6 py-8 text-center text-stone-400">
-                  No teams yet. Add your first team to get started.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {teams.map((t) => (
+                <tr key={t.id} className="border-b border-stone-50 dark:border-stone-800/50 last:border-0 hover:bg-stone-50/50 dark:hover:bg-stone-800/40 transition-colors">
+                  <td className="px-6 py-3.5 font-medium text-stone-800 dark:text-stone-200">{t.name}</td>
+                  <td className="px-6 py-3.5 text-stone-600 dark:text-stone-400">{t.captain_name}</td>
+                  <td className="px-6 py-3.5 text-stone-500 dark:text-stone-400">
+                    <span className="inline-flex items-center gap-1.5">
+                      <Phone className="w-3.5 h-3.5" /> {t.captain_phone}
+                    </span>
+                  </td>
+                  <td className="px-6 py-3.5 text-stone-500 dark:text-stone-400">{t.contacts?.length ?? 0}</td>
+                  <td className="px-6 py-3.5 text-right">
+                    <button onClick={() => openEdit(t)} className="text-stone-400 hover:text-pitch-600 dark:hover:text-pitch-400 p-1.5 transition-colors">
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                    <button onClick={() => handleDelete(t.id)} className="text-stone-400 hover:text-red-600 dark:hover:text-red-400 p-1.5 transition-colors">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {teams.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="px-6 py-8 text-center text-stone-400 dark:text-stone-500">
+                    No teams yet. Add your first team to get started.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </Card>
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? "Edit team" : "Add team"}>
@@ -184,13 +186,13 @@ export default function Teams() {
 
           <div className="space-y-4">
             {form.contacts.map((contact, index) => (
-              <div key={index} className="border border-stone-200 rounded-xl p-4">
+              <div key={index} className="border border-stone-200 dark:border-stone-800 rounded-xl p-4 bg-stone-50/50 dark:bg-stone-800/50">
                 <div className="flex items-center justify-between gap-4 mb-4">
-                  <h3 className="text-sm font-semibold text-stone-900">Contact {index + 1}</h3>
+                  <h3 className="text-sm font-semibold text-stone-900 dark:text-stone-100">Contact {index + 1}</h3>
                   {form.contacts.length > 1 && (
                     <button
                       type="button"
-                      className="text-sm text-red-600 hover:underline"
+                      className="text-sm text-red-600 dark:text-red-400 hover:underline"
                       onClick={() => removeContact(index)}
                     >
                       Remove
@@ -206,13 +208,12 @@ export default function Teams() {
                     required
                   />
                 </Field>
-                <Field label="Phone (international format)">
+                <Field label="Phone (international or local format)">
                   <input
                     className={inputClass}
                     value={contact.phone}
                     onChange={(e) => updateContact(index, "phone", e.target.value)}
-                    placeholder="+2547XXXXXXXX"
-                    pattern="\+\d{10,15}"
+                    placeholder="+2547XXXXXXXX or 07XXXXXXXX"
                     required
                   />
                 </Field>
@@ -230,13 +231,13 @@ export default function Teams() {
 
           <button
             type="button"
-            className="inline-flex items-center gap-2 text-sm font-medium text-pitch-600 hover:text-pitch-800 mt-3"
+            className="inline-flex items-center gap-2 text-sm font-medium text-pitch-600 dark:text-pitch-400 hover:underline mt-3"
             onClick={addContact}
           >
             <Plus className="w-4 h-4" /> Add another contact
           </button>
 
-          <p className="text-xs text-stone-400 mb-4 mt-3">
+          <p className="text-xs text-stone-400 dark:text-stone-500 mb-4 mt-3">
             Each contact will receive SMS, voice and USSD updates if they are invited to a match.
           </p>
           <Button type="submit" className="w-full">

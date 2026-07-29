@@ -43,6 +43,33 @@ app.use("/api/sms", webhookRateLimit, smsRoutes);
 app.use("/api/ussd", webhookRateLimit, ussdRoutes);
 app.use("/api/voice", voiceRoutes);
 
+// Global Error Handling Middleware
+app.use((err, req, res, next) => {
+  console.error("[SERVER ERROR]", req.method, req.path, err);
+
+  if (req.path.startsWith("/api/ussd")) {
+    res.set("Content-Type", "text/plain");
+    return res.status(200).send("END System error occurred. Please try again later.");
+  }
+  if (req.path.startsWith("/api/voice")) {
+    res.set("Content-Type", "text/xml");
+    return res.status(200).send(`<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say voice="woman">System error occurred. Please try again later.</Say>
+</Response>`);
+  }
+  if (req.path.startsWith("/api/sms")) {
+    res.set("Content-Type", "text/plain");
+    return res.status(200).send("OK");
+  }
+
+  const statusCode = err.status || err.statusCode || 500;
+  res.status(statusCode).json({
+    error: err.message || "Internal server error",
+    ...(process.env.NODE_ENV === "development" ? { stack: err.stack } : {}),
+  });
+});
+
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
   console.log(`\n🏟️  PitchLink backend running on http://localhost:${PORT}`);

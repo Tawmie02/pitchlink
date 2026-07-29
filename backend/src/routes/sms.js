@@ -10,6 +10,7 @@
 import { Router } from "express";
 import { db } from "../db/index.js";
 import { sendSms } from "../services/africastalking.js";
+import { normalizePhone } from "../lib/phone.js";
 
 const router = Router();
 const ORGANIZER_PHONE = process.env.ORGANIZER_PHONE || "+254712345678";
@@ -34,6 +35,7 @@ function formatTime(hhmm) {
 }
 
 function getActiveAssignment(phoneNumber) {
+  const normalized = normalizePhone(phoneNumber);
   return db
     .prepare(
       `SELECT p.*, m.id AS match_id, m.match_date, m.match_time, m.venue,
@@ -50,7 +52,7 @@ function getActiveAssignment(phoneNumber) {
                 p.id DESC
        LIMIT 1`
     )
-    .get(phoneNumber);
+    .get(normalized);
 }
 
 function insertMessage({ matchId, participantId, channel, direction, body, status, providerRef }) {
@@ -123,7 +125,8 @@ function normalizeDeliveryStatus(status = "") {
 }
 
 router.post("/inbound", async (req, res) => {
-  const from = req.body.from || req.body.phoneNumber || "";
+  const rawFrom = req.body.from || req.body.phoneNumber || "";
+  const from = normalizePhone(rawFrom);
   const text = normalizeText(req.body.text || "");
   const messageId = req.body.id || req.body.messageId || null;
   const assignment = getActiveAssignment(from);

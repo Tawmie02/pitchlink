@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { db } from "../db/index.js";
+import { normalizePhone, isValidPhone } from "../lib/phone.js";
 
 const router = Router();
 
@@ -24,11 +25,13 @@ function validateContacts(contacts) {
     if (!contact?.name || !contact?.phone) {
       return { error: "Each contact must include name and phone" };
     }
-    if (!/^\+\d{10,15}$/.test(contact.phone)) {
+    const normalized = normalizePhone(contact.phone);
+    if (!isValidPhone(normalized)) {
       return {
-        error: "Each contact phone must be in international format, e.g. +2547XXXXXXXX",
+        error: `Invalid phone number for ${contact.name}. Please enter a valid number (e.g. +2547XXXXXXXX or 07XXXXXXXX)`,
       };
     }
+    contact.phone = normalized;
   }
   return null;
 }
@@ -43,10 +46,51 @@ function insertContacts(teamId, contacts) {
   );
   const insertMany = db.transaction((items) => {
     for (const item of items) {
-      insert.run(teamId, item.name, item.phone, item.role || "member");
+      const normalized = normalizePhone(item.phone);
+      insert.run(teamId, item.name, normalized, item.role || "member");
     }
   });
   insertMany(contacts);
+}
+
+function syncTeamToUpcomingMatches(teamId) {
+  const contacts = getTeamContacts(teamId);
+  const matches = db
+    .prepare(
+      `SELECT id FROM matches
+       WHERE status = 'scheduled'
+         AND (home_team_id = ? OR away_team_id = ?)`
+    )
+    .all(teamId, teamId);
+
+  const findByPhone = db.prepare(
+    `SELECT id FROM participants
+     WHERE match_id = ? AND team_id = ? AND phone = ?`
+  );
+  const findByNameAndRole = db.prepare(
+    `SELECT id FROM participants
+     WHERE match_id = ? AND team_id = ? AND name = ? AND role = ?`
+  );
+  const insertParticipant = db.prepare(
+    `INSERT INTO participants (match_id, team_id, name, phone, role)
+     VALUES (?, ?, ?, ?, ?)`
+  );
+  const updateParticipant = db.prepare(
+    `UPDATE participants SET name = ?, phone = ?, role = ?, team_id = ? WHERE id = ?`
+  );
+
+  for (const match of matches) {
+    for (const contact of contacts) {
+      const existing = findByPhone.get(match.id, teamId, contact.phone)
+        || findByNameAndRole.get(match.id, teamId, contact.name, contact.role);
+
+      if (existing) {
+        updateParticipant.run(contact.name, contact.phone, contact.role || "member", teamId, existing.id);
+      } else {
+        insertParticipant.run(match.id, teamId, contact.name, contact.phone, contact.role || "member");
+      }
+    }
+  }
 }
 
 router.get("/", (req, res) => {
@@ -80,6 +124,7 @@ router.post("/", (req, res) => {
     .run(name, captain.name, captain.phone);
 
   insertContacts(result.lastInsertRowid, finalContacts);
+  syncTeamToUpcomingMatches(result.lastInsertRowid);
   const team = db.prepare("SELECT * FROM teams WHERE id = ?").get(result.lastInsertRowid);
   res.status(201).json(teamWithContacts(team));
 });
@@ -116,6 +161,7 @@ router.put("/:id", (req, res) => {
   if (finalContacts) {
     db.prepare("DELETE FROM team_contacts WHERE team_id = ?").run(req.params.id);
     insertContacts(req.params.id, finalContacts);
+    syncTeamToUpcomingMatches(req.params.id);
   }
 
   res.json(teamWithContacts(db.prepare("SELECT * FROM teams WHERE id = ?").get(req.params.id)));

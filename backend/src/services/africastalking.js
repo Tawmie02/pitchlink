@@ -15,8 +15,11 @@ import AfricasTalking from "africastalking";
 import dotenv from "dotenv";
 dotenv.config();
 
+const apiKey = process.env.AT_API_KEY?.trim() || "";
 const hasCredentials =
-  process.env.AT_API_KEY && process.env.AT_API_KEY !== "PASTE_YOUR_SANDBOX_API_KEY_HERE";
+  Boolean(apiKey) &&
+  apiKey !== "PASTE_YOUR_SANDBOX_API_KEY_HERE" &&
+  apiKey !== "your_real_sandbox_key_here";
 
 let sms, voice;
 
