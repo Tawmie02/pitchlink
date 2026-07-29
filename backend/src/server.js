@@ -8,6 +8,7 @@ import morgan from "morgan";
 import authRoutes, { requireAuth } from "./routes/auth.js";
 import teamRoutes from "./routes/teams.js";
 import matchRoutes from "./routes/matches.js";
+import smsRoutes from "./routes/sms.js";
 import ussdRoutes from "./routes/ussd.js";
 import voiceRoutes from "./routes/voice.js";
 import { isLiveMode } from "./services/africastalking.js";
@@ -29,6 +30,7 @@ app.use("/api/teams", requireAuth, teamRoutes);
 app.use("/api/matches", requireAuth, matchRoutes);
 
 // Public webhooks — Africa's Talking calls these directly, no JWT available
+app.use("/api/sms", smsRoutes);
 app.use("/api/ussd", ussdRoutes);
 app.use("/api/voice", voiceRoutes);
 

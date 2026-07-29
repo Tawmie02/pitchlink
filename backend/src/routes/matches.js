@@ -4,6 +4,36 @@ import { sendSms, triggerVoiceAlert } from "../services/africastalking.js";
 
 const router = Router();
 
+function formatDate(isoDate) {
+  return new Date(`${isoDate}T00:00:00`).toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+function formatTime(hhmm) {
+  const [hours, minutes] = hhmm.split(":").map(Number);
+  const suffix = hours >= 12 ? "PM" : "AM";
+  const displayHour = hours % 12 || 12;
+  return `${displayHour}:${String(minutes).padStart(2, "0")} ${suffix}`;
+}
+
+function buildReminderMessage(match) {
+  return [
+    "🏆 PitchLink",
+    "",
+    "Reminder:",
+    `${match.home_team_name} vs ${match.away_team_name}`,
+    "",
+    `📅 ${formatDate(match.match_date)}`,
+    `🕙 ${formatTime(match.match_time)}`,
+    `📍 ${match.venue}`,
+    "",
+    "Reply YES to confirm attendance.",
+  ].join("\n");
+}
+
 function getMatchWithDetails(matchId) {
   const match = db
     .prepare(
@@ -163,7 +193,7 @@ router.post("/:id/notify", async (req, res) => {
 
   const messageText =
     req.body.message ||
-    `Match reminder: ${match.home_team_name} vs ${match.away_team_name} at ${match.venue} on ${match.match_date} ${match.match_time}. Reply CONFIRM or DECLINE.`;
+    buildReminderMessage(match);
 
   const results = [];
   for (const participant of match.participants) {

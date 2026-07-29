@@ -116,6 +116,18 @@ https://developers.africastalking.com/simulator
 Enter your phone number and USSD service code there, and it'll hit your
 `/api/ussd` webhook exactly like a real phone would.
 
+### 3.6 Test SMS replies live
+To demo the SMS flow, register these callbacks in the Africa's Talking SMS
+dashboard using your ngrok URL:
+
+- Incoming Messages -> `{PUBLIC_URL}/api/sms/inbound`
+- Delivery Reports -> `{PUBLIC_URL}/api/sms/delivery`
+
+Then send a reminder from the match detail screen. The recipient gets the
+match details by SMS and can reply `YES` or `NO`; the backend updates the
+attendance status, sends a confirmation SMS, and records the exchange in the
+match message feed.
+
 ---
 
 ## 4. What's genuinely "live" vs. demo-optimized
