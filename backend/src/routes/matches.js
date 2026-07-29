@@ -133,14 +133,34 @@ router.post("/", (req, res) => {
     .run(home_team_id, away_team_id, venue, match_date, match_time);
   const matchId = result.lastInsertRowid;
 
-  // Auto-add captains + a default referee slot as participants
+  // Auto-add all stored team contacts as participants for this match
   const homeTeam = db.prepare("SELECT * FROM teams WHERE id = ?").get(home_team_id);
   const awayTeam = db.prepare("SELECT * FROM teams WHERE id = ?").get(away_team_id);
+  const homeContacts = db
+    .prepare("SELECT name, phone, role FROM team_contacts WHERE team_id = ? ORDER BY role, name")
+    .all(home_team_id);
+  const awayContacts = db
+    .prepare("SELECT name, phone, role FROM team_contacts WHERE team_id = ? ORDER BY role, name")
+    .all(away_team_id);
   const insertParticipant = db.prepare(
     `INSERT INTO participants (match_id, team_id, name, phone, role) VALUES (?, ?, ?, ?, ?)`
   );
-  insertParticipant.run(matchId, home_team_id, homeTeam.captain_name, homeTeam.captain_phone, "captain");
-  insertParticipant.run(matchId, away_team_id, awayTeam.captain_name, awayTeam.captain_phone, "captain");
+
+  if (homeContacts.length > 0) {
+    for (const contact of homeContacts) {
+      insertParticipant.run(matchId, home_team_id, contact.name, contact.phone, contact.role || "member");
+    }
+  } else {
+    insertParticipant.run(matchId, home_team_id, homeTeam.captain_name, homeTeam.captain_phone, "captain");
+  }
+
+  if (awayContacts.length > 0) {
+    for (const contact of awayContacts) {
+      insertParticipant.run(matchId, away_team_id, contact.name, contact.phone, contact.role || "member");
+    }
+  } else {
+    insertParticipant.run(matchId, away_team_id, awayTeam.captain_name, awayTeam.captain_phone, "captain");
+  }
 
   res.status(201).json(getMatchWithDetails(matchId));
 });

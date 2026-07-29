@@ -26,6 +26,15 @@ CREATE TABLE IF NOT EXISTS teams (
   created_at TEXT DEFAULT (datetime('now'))
 );
 
+CREATE TABLE IF NOT EXISTS team_contacts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  team_id INTEGER NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  phone TEXT NOT NULL,
+  role TEXT NOT NULL DEFAULT 'member', -- captain | member | coach | manager | stakeholder
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
 CREATE TABLE IF NOT EXISTS matches (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   home_team_id INTEGER NOT NULL REFERENCES teams(id),

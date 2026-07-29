@@ -4,6 +4,7 @@ dotenv.config();
 import express from "express";
 import cors from "cors";
 import morgan from "morgan";
+import { ipKeyGenerator, rateLimit } from "express-rate-limit";
 
 import authRoutes, { requireAuth } from "./routes/auth.js";
 import teamRoutes from "./routes/teams.js";
@@ -14,6 +15,14 @@ import voiceRoutes from "./routes/voice.js";
 import { isLiveMode } from "./services/africastalking.js";
 
 const app = express();
+const webhookRateLimit = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.body?.phoneNumber || req.body?.from || ipKeyGenerator(req.ip),
+  message: "Too many requests. Please try again shortly.",
+});
 
 app.use(cors());
 app.use(morgan("dev"));
@@ -30,8 +39,8 @@ app.use("/api/teams", requireAuth, teamRoutes);
 app.use("/api/matches", requireAuth, matchRoutes);
 
 // Public webhooks — Africa's Talking calls these directly, no JWT available
-app.use("/api/sms", smsRoutes);
-app.use("/api/ussd", ussdRoutes);
+app.use("/api/sms", webhookRateLimit, smsRoutes);
+app.use("/api/ussd", webhookRateLimit, ussdRoutes);
 app.use("/api/voice", voiceRoutes);
 
 const PORT = process.env.PORT || 4000;

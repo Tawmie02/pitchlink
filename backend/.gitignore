@@ -1,3 +1,6 @@
 node_modules/
 .env
 .env.example
+src/db/pitchlink.db
+npm-debug.log*
+*log
